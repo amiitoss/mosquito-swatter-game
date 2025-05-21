@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mosquito Swatter Game</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: white;
+        cursor: none;
+        user-select: none;
+        font-family: Arial, sans-serif;
+      }
+
+      #game-container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        background: white;
+      }
+
+      .mosquito {
+        position: absolute;
+        width: 40px; /* Adjusted for typical GIF size */
+        height: 40px; /* Adjusted for typical GIF size */
+        background-size: contain;
+        background-repeat: no-repeat;
+        z-index: 10;
+        transition: transform 0.2s ease;
+      }
+
+      .splat {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M30 30c0 0-10 5-15 0s0-15 5-15 10 10 10 15zm40-15c5 0 10 10 5 15s-15 0-15 0 5-15 10-15zm-40 70c-5 0-10-10-5-15s15 0 15 0-5 15-10 15zm40 0c-5 0-10-15-10-15s10-5 15 0 0 15-5 15zm-20-20c-5-5-15-15-15-15s-5-10 0-15 10 0 15 5 15 15 15 15 5 10 0 15-10 0-15-5z' fill='red'/></svg>");
+        background-size: contain;
+        background-repeat: no-repeat;
+        z-index: 5;
+        opacity: 1;
+        transition: opacity 1s ease;
+      }
+
+      #swatter {
+        position: absolute;
+        width: 300px;
+        height: 300px;
+        background-image: url("swatter.png"); /* We'll use your custom swatter image */
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 20;
+        transform-origin: center bottom; /* Set transform origin to create better swatting motion */
+        transition: transform 0.1s ease;
+      }
+
+      /* Visible border to show the active kill area */
+      #swatter-hitbox {
+        position: absolute;
+        width: 70px;
+        height: 70px;
+        /* border: 2px solid rgba(255, 0, 0, 0.5); */
+        transform: translate(-50%, -150%);
+        pointer-events: none;
+        z-index: 19;
+      }
+
+      /* Inner effective kill area (95% of the square) */
+      #effective-hitbox {
+        position: absolute;
+        width: 66px; /* 95% of 70px */
+        height: 66px; /* 95% of 70px */
+        /* border: 2px dashed rgba(0, 255, 0, 0.5); */
+        transform: translate(-50%, -150%);
+        pointer-events: none;
+        z-index: 18;
+      }
+
+      #ui {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 10px;
+        background-color: rgba(255, 255, 255, 0.7);
+        border-radius: 5px;
+        z-index: 100;
+        font-size: 18px;
+        font-weight: bold;
+      }
+
+      #game-over {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: rgba(255, 255, 255, 0.9);
+        border: 2px solid black;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        z-index: 200;
+        display: none;
+      }
+
+      #game-over h2 {
+        margin-top: 0;
+      }
+
+      #play-again {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 10px 2px;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+
+      #sound-control {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        padding: 10px;
+        background-color: rgba(255, 255, 255, 0.7);
+        border-radius: 5px;
+        z-index: 100;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+      }
+
+      #mute-buzzing {
+        margin-left: 10px;
+        cursor: pointer;
+      }
+
+      #high-score {
+        position: absolute;
+        top: 50px;
+        left: 10px;
+        padding: 10px;
+        background-color: rgba(255, 255, 255, 0.7);
+        border-radius: 5px;
+        z-index: 100;
+        font-size: 18px;
+        font-weight: bold;
+        color: #800080;
+      }
+
+      #debug-info {
+        position: absolute;
+        bottom: 10px;
+        left: 10px;
+        padding: 10px;
+        background-color: rgba(255, 255, 255, 0.7);
+        border-radius: 5px;
+        z-index: 100;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container">
+      <div id="swatter"></div>
+      <div id="swatter-hitbox"></div>
+      <div id="effective-hitbox"></div>
+      <div id="ui">
+        Time: <span id="timer">30</span> | Kills: <span id="score">0</span> |
+        Mosquitoes: <span id="mosquito-count">0</span>/<span id="max-mosquitoes"
+          >10</span
+        >
+      </div>
+      <div id="high-score">
+        High Score: <span id="high-score-value">0</span>
+      </div>
+      <div id="sound-control">
+        Mosquito Sound:
+        <input type="checkbox" id="mute-buzzing" checked />
+        <label for="mute-buzzing">On</label>
+      </div>
+      <div id="game-over">
+        <h2>Game Over!</h2>
+        <p>You killed <span id="final-score">0</span> mosquitoes!</p>
+        <p>
+          <small
+            >Pro tip: You can kill multiple mosquitoes with one swat!</small
+          >
+        </p>
+        <p
+          id="new-high-score"
+          style="color: #800080; font-weight: bold; display: none"
+        >
+          New High Score!
+        </p>
+        <button id="play-again">Play Again</button>
+      </div>
+      <div id="debug-info">
+        Kill Area: Only within green dashed line (95% of hitbox)
+      </div>
+    </div>
+
+    <script>
+      // Game variables
+      const gameContainer = document.getElementById("game-container");
+      const swatter = document.getElementById("swatter");
+      const swatterHitbox = document.getElementById("swatter-hitbox");
+      const effectiveHitbox = document.getElementById("effective-hitbox");
+      const timerElement = document.getElementById("timer");
+      const scoreElement = document.getElementById("score");
+      const gameOverScreen = document.getElementById("game-over");
+      const finalScoreElement = document.getElementById("final-score");
+      const playAgainButton = document.getElementById("play-again");
+      const muteBuzzingCheckbox = document.getElementById("mute-buzzing");
+      const muteBuzzingLabel = document.querySelector(
+        'label[for="mute-buzzing"]'
+      );
+      const highScoreElement = document.getElementById("high-score-value");
+      const newHighScoreElement = document.getElementById("new-high-score");
+
+      let timeLeft = 30;
+      let score = 0;
+      let highScore = 0;
+      let gameActive = false;
+      let mosquitoes = [];
+      let gameLoop;
+      let timerInterval;
+      let mosquitoSpawnRate = 3000; // Milliseconds between mosquito spawns
+      let initialSpawnRate = 3000; // Store initial spawn rate
+      let lastSpawnTime = 0;
+      let isBuzzingMuted = false;
+      let maxMosquitoes = 10; // Maximum number of mosquitoes allowed at once
+
+      // Define mosquito GIF path - you'll need to replace this with your actual GIF path
+      const mosquitoGifPath = "mosquito.gif"; // Replace with your actual GIF path
+
+      // Define swatter image path - you'll need to replace this with your actual image path
+      const swatterImagePath = "swatter.png"; // Replace with your actual swatter image path
+
+      // Swatter hitbox dimensions (the visual box)
+      const swatterHitboxWidth = 70;
+      const swatterHitboxHeight = 70;
+
+      // Effective hitbox dimensions (95% of the hitbox)
+      const effectiveHitboxWidth = swatterHitboxWidth * 0.95;
+      const effectiveHitboxHeight = swatterHitboxHeight * 0.95;
+
+      // Offset for the hitbox (to match visual position)
+      const hitboxOffsetX = 0;
+      const hitboxOffsetY = -70; // Move up to match the -150% transform
+
+      // Initialize swatter with the custom image
+      window.addEventListener("DOMContentLoaded", () => {
+        swatter.style.backgroundImage = `url('${swatterImagePath}')`;
+      });
+
+      // Load high score from localStorage
+      function loadHighScore() {
+        const savedHighScore = localStorage.getItem("mosquitoGameHighScore");
+        if (savedHighScore !== null) {
+          highScore = parseInt(savedHighScore);
+          highScoreElement.textContent = highScore;
+        }
+      }
+
+      // Save high score to localStorage
+      function saveHighScore(newHighScore) {
+        localStorage.setItem("mosquitoGameHighScore", newHighScore);
+        highScore = newHighScore;
+        highScoreElement.textContent = newHighScore;
+      }
+
+      // Check and update high score
+      function checkHighScore() {
+        if (score > highScore) {
+          saveHighScore(score);
+          newHighScoreElement.style.display = "block";
+          return true;
+        }
+        return false;
+      }
+
+      // Sound effects using Web Audio API
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      const audioContext = new AudioContext();
+
+      // Sound buffers
+      let buzzingBuffer = null;
+      let swatterBuffer = null;
+      let splatBuffer = null;
+      let buzzingSource = null;
+      let buzzingGainNode = null;
+
+      // Mute buzzing checkbox event
+      muteBuzzingCheckbox.addEventListener("change", function () {
+        isBuzzingMuted = !this.checked;
+        muteBuzzingLabel.textContent = this.checked ? "On" : "Off";
+
+        if (buzzingGainNode) {
+          buzzingGainNode.gain.value = isBuzzingMuted ? 0 : 0.05;
+        }
+      });
+
+      // Load sound effects
+      function loadSound(url) {
+        return fetch(url)
+          .then((response) => response.arrayBuffer())
+          .then((data) => audioContext.decodeAudioData(data));
+      }
+
+      // Create oscillator for mosquito buzzing sound
+      function createBuzzingSound() {
+        if (buzzingSource) {
+          buzzingSource.stop();
+        }
+
+        // Create an oscillator for buzzing
+        buzzingSource = audioContext.createOscillator();
+        buzzingGainNode = audioContext.createGain();
+
+        // Configure the oscillator
+        buzzingSource.type = "sawtooth";
+        buzzingSource.frequency.value = 600;
+
+        // Add some randomness to the frequency
+        const lfo = audioContext.createOscillator();
+        lfo.type = "sine";
+        lfo.frequency.value = 6;
+        lfo.connect(buzzingSource.frequency);
+        lfo.start();
+
+        // Set volume based on mute state
+        buzzingGainNode.gain.value = isBuzzingMuted ? 0 : 0.05;
+
+        // Connect nodes
+        buzzingSource.connect(buzzingGainNode);
+        buzzingGainNode.connect(audioContext.destination);
+
+        // Start the oscillator
+        buzzingSource.start();
+
+        return buzzingSource;
+      }
+
+      // Play swatter sound
+      function playSwatterSound() {
+        const source = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        // Configure oscillator for swat sound
+        source.type = "sine";
+        source.frequency.value = 150;
+
+        // Configure gain for quick attack and release
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(
+          0.5,
+          audioContext.currentTime + 0.01
+        );
+        gainNode.gain.linearRampToValueAtTime(
+          0,
+          audioContext.currentTime + 0.15
+        );
+
+        // Connect and play
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        source.start();
+        source.stop(audioContext.currentTime + 0.2);
+      }
+
+      // Play splat sound
+      function playSplatSound() {
+        const source = audioContext.createOscillator();
+        const noise = audioContext.createBufferSource();
+        const gainNode = audioContext.createGain();
+        const noiseGain = audioContext.createGain();
+
+        // Create noise buffer for splat
+        const bufferSize = audioContext.sampleRate * 0.1; // 100ms
+        const buffer = audioContext.createBuffer(
+          1,
+          bufferSize,
+          audioContext.sampleRate
+        );
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+
+        noise.buffer = buffer;
+
+        // Configure oscillator for splat tone
+        source.type = "sine";
+        source.frequency.value = 60;
+
+        // Configure gain for quick attack and release
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(
+          0.3,
+          audioContext.currentTime + 0.01
+        );
+        gainNode.gain.linearRampToValueAtTime(
+          0,
+          audioContext.currentTime + 0.3
+        );
+
+        noiseGain.gain.setValueAtTime(0, audioContext.currentTime);
+        noiseGain.gain.linearRampToValueAtTime(
+          0.3,
+          audioContext.currentTime + 0.01
+        );
+        noiseGain.gain.linearRampToValueAtTime(
+          0,
+          audioContext.currentTime + 0.1
+        );
+
+        // Connect and play
+        source.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        noise.connect(noiseGain);
+        noiseGain.connect(audioContext.destination);
+
+        source.start();
+        noise.start();
+        source.stop(audioContext.currentTime + 0.3);
+        noise.stop(audioContext.currentTime + 0.3);
+      }
+
+      // Initialize the game
+      function initGame() {
+        // Load high score first
+        loadHighScore();
+
+        // Reset game state
+        timeLeft = 30;
+        score = 0;
+        gameActive = true;
+        mosquitoes = [];
+        mosquitoSpawnRate = initialSpawnRate;
+        maxMosquitoes = 10;
+
+        // Resume audio context if suspended (needed due to browser autoplay policies)
+        if (audioContext.state === "suspended") {
+          audioContext.resume();
+        }
+
+        // Clear any existing mosquitoes and splats
+        document
+          .querySelectorAll(".mosquito, .splat")
+          .forEach((el) => el.remove());
+
+        // Update UI
+        timerElement.textContent = timeLeft;
+        scoreElement.textContent = score;
+        gameOverScreen.style.display = "none";
+        newHighScoreElement.style.display = "none";
+
+        // Create first mosquito
+        createMosquito();
+
+        // Start the game loop
+        gameLoop = requestAnimationFrame(updateGame);
+
+        // Start the timer
+        timerInterval = setInterval(() => {
+          timeLeft--;
+          timerElement.textContent = timeLeft;
+
+          // Increase max mosquitoes as time decreases
+          maxMosquitoes = Math.min(
+            25,
+            10 + Math.floor((30 - timeLeft) / 5) + Math.floor(score / 10)
+          );
+
+          if (timeLeft <= 0) {
+            endGame();
+          }
+        }, 1000);
+
+        // Start the mosquito buzzing sound
+        createBuzzingSound();
+      }
+
+      // Create a new mosquito
+      function createMosquito() {
+        const mosquito = document.createElement("div");
+        mosquito.className = "mosquito";
+
+        // Use the GIF image instead of SVG
+        mosquito.style.backgroundImage = `url('${mosquitoGifPath}')`;
+
+        // Random position within the game container
+        const x = Math.random() * (window.innerWidth - 40);
+        const y = Math.random() * (window.innerHeight - 40);
+
+        mosquito.style.left = `${x}px`;
+        mosquito.style.top = `${y}px`;
+
+        // Random direction and speed
+        const speed = 2 + Math.random() * 3;
+        const angle = Math.random() * Math.PI * 2;
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
+
+        // Store mosquito data
+        const mosquitoData = {
+          element: mosquito,
+          x,
+          y,
+          vx,
+          vy,
+          speed,
+          changeDirectionTime: Date.now() + 1000 + Math.random() * 2000,
+        };
+
+        mosquitoes.push(mosquitoData);
+        gameContainer.appendChild(mosquito);
+        lastSpawnTime = Date.now();
+      }
+
+      // Update game state
+      function updateGame(timestamp) {
+        if (!gameActive) return;
+
+        // Spawn new mosquitoes over time if under the maximum limit
+        if (
+          Date.now() - lastSpawnTime > mosquitoSpawnRate &&
+          mosquitoes.length < maxMosquitoes
+        ) {
+          createMosquito();
+        }
+
+        // Update mosquito count display
+        document.getElementById("mosquito-count").textContent =
+          mosquitoes.length;
+        document.getElementById("max-mosquitoes").textContent = maxMosquitoes;
+
+        // Move mosquitoes
+        mosquitoes.forEach((mosquito) => {
+          // Check if it's time to change direction
+          if (Date.now() > mosquito.changeDirectionTime) {
+            // Slightly change direction
+            const angleChange = ((Math.random() - 0.5) * Math.PI) / 2;
+            const speed = mosquito.speed;
+            const currentAngle = Math.atan2(mosquito.vy, mosquito.vx);
+            const newAngle = currentAngle + angleChange;
+
+            mosquito.vx = Math.cos(newAngle) * speed;
+            mosquito.vy = Math.sin(newAngle) * speed;
+
+            mosquito.changeDirectionTime =
+              Date.now() + 1000 + Math.random() * 2000;
+          }
+
+          // Update position
+          mosquito.x += mosquito.vx;
+          mosquito.y += mosquito.vy;
+
+          // Bounce off edges
+          if (mosquito.x < 0 || mosquito.x > window.innerWidth - 40) {
+            mosquito.vx *= -1;
+            mosquito.x = Math.max(
+              0,
+              Math.min(window.innerWidth - 40, mosquito.x)
+            );
+          }
+
+          if (mosquito.y < 0 || mosquito.y > window.innerHeight - 40) {
+            mosquito.vy *= -1;
+            mosquito.y = Math.max(
+              0,
+              Math.min(window.innerHeight - 40, mosquito.y)
+            );
+          }
+
+          // Update element position
+          mosquito.element.style.left = `${mosquito.x}px`;
+          mosquito.element.style.top = `${mosquito.y}px`;
+
+          // We no longer need rotation for GIF mosquitoes as they're animated
+          // But we can flip the GIF horizontally based on direction for better visuals
+          if (mosquito.vx < 0) {
+            mosquito.element.style.transform = "scaleX(-1)";
+          } else {
+            mosquito.element.style.transform = "scaleX(1)";
+          }
+        });
+
+        // Update the difficulty based on score and time
+        const timeReduction = timeLeft * 75;
+        const scoreBonus = score * 50;
+        mosquitoSpawnRate = Math.max(300, 3000 - timeReduction - scoreBonus);
+
+        // Continue the game loop
+        gameLoop = requestAnimationFrame(updateGame);
+      }
+
+      // End the game
+      function endGame() {
+        gameActive = false;
+        clearInterval(timerInterval);
+        cancelAnimationFrame(gameLoop);
+
+        finalScoreElement.textContent = score;
+
+        // Check for high score
+        const isNewHighScore = checkHighScore();
+
+        gameOverScreen.style.display = "block";
+
+        // Stop the buzzing sound
+        if (buzzingSource) {
+          buzzingSource.stop();
+          buzzingSource = null;
+        }
+      }
+
+      // Create a splat effect
+      function createSplat(x, y) {
+        const splat = document.createElement("div");
+        splat.className = "splat";
+        splat.style.left = `${x - 20}px`;
+        splat.style.top = `${y - 20}px`;
+        gameContainer.appendChild(splat);
+
+        // Fade out and remove the splat after a while
+        setTimeout(() => {
+          splat.style.opacity = "0";
+          setTimeout(() => splat.remove(), 1000);
+        }, 2000);
+      }
+
+      // Kill a mosquito
+      function killMosquito(index) {
+        const mosquito = mosquitoes[index];
+        createSplat(mosquito.x + 20, mosquito.y + 20);
+        mosquito.element.remove();
+        mosquitoes.splice(index, 1);
+
+        // Play splat sound
+        playSplatSound();
+
+        score++;
+        scoreElement.textContent = score;
+      }
+
+      // Mouse movement for swatter and hitbox
+      document.addEventListener("mousemove", (e) => {
+        // Update swatter position
+        swatter.style.left = `${e.clientX}px`;
+        swatter.style.top = `${e.clientY}px`;
+
+        // Update hitbox position (with offset to match the visual position)
+        swatterHitbox.style.left = `${e.clientX}px`;
+        swatterHitbox.style.top = `${e.clientY}px`;
+
+        // Update effective hitbox position (matches the swatter hitbox)
+        effectiveHitbox.style.left = `${e.clientX}px`;
+        effectiveHitbox.style.top = `${e.clientY}px`;
+      });
+
+      // Single click to swat
+      document.addEventListener("click", (e) => {
+        if (!gameActive) return;
+
+        // Animate swatter with a perpendicular hitting motion
+        // Start with a "raised" position
+        swatter.style.transform =
+          "translate(-50%, -50%) scale(0.8) perspective(400px) rotateX(-30deg)";
+
+        // Then quickly "hit" downward
+        setTimeout(() => {
+          swatter.style.transform =
+            "translate(-50%, -50%) scale(1.1) perspective(400px) rotateX(10deg)";
+          // Play swatter sound
+          playSwatterSound();
+        }, 50);
+
+        // Return to normal position
+        setTimeout(() => {
+          swatter.style.transform = "translate(-50%, -50%) scale(1)";
+        }, 200);
+
+        // Calculate the center point of the hitbox
+        const hitboxCenterX = e.clientX + hitboxOffsetX;
+        const hitboxCenterY = e.clientY + hitboxOffsetY;
+
+        // Calculate the effective kill area (95% of the square from center)
+        // This means each side is reduced by 2.5% on each edge from the center
+        const effectiveArea = {
+          left: hitboxCenterX - effectiveHitboxWidth / 2,
+          right: hitboxCenterX + effectiveHitboxWidth / 2,
+          top: hitboxCenterY - effectiveHitboxHeight / 2,
+          bottom: hitboxCenterY + effectiveHitboxHeight / 2,
+        };
+
+        // Track mosquitoes to kill
+        const mosquitoesToKill = [];
+
+        // Check all mosquitoes in the kill area
+        for (let i = mosquitoes.length - 1; i >= 0; i--) {
+          const mosquito = mosquitoes[i];
+          const mosquitoCenter = {
+            x: mosquito.x + 20, // Center of the mosquito (40px width / 2)
+            y: mosquito.y + 20, // Center of the mosquito (40px height / 2)
+          };
+
+          // Check if the mosquito's center is within the effective kill area
+          if (
+            mosquitoCenter.x >= effectiveArea.left &&
+            mosquitoCenter.x <= effectiveArea.right &&
+            mosquitoCenter.y >= effectiveArea.top &&
+            mosquitoCenter.y <= effectiveArea.bottom
+          ) {
+            mosquitoesToKill.push(i);
+          }
+        }
+
+        // Kill all mosquitoes that were hit (in reverse order to avoid index issues)
+        mosquitoesToKill
+          .sort((a, b) => b - a)
+          .forEach((index) => {
+            killMosquito(index);
+          });
+      });
+
+      // Prevent context menu on right-click
+      document.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+      });
+
+      // Play again button
+      playAgainButton.addEventListener("click", initGame);
+
+      // Add audio context initialization on user interaction
+      document.addEventListener("click", function initAudio() {
+        // This will enable audio on first click (browser policy requires user interaction)
+        if (audioContext.state === "suspended") {
+          audioContext.resume();
+        }
+        // Remove the event listener after first interaction
+        document.removeEventListener("click", initAudio);
+      });
+
+      // Load high score on page load
+      window.addEventListener("load", () => {
+        loadHighScore();
+        initGame();
+      });
+    </script>
+  </body>
+</html>
